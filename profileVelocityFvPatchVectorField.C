@@ -23,11 +23,16 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "profileVelocityFvPatchVectorField.H"
+#include "Field.H"
 #include "addToRunTimeSelectionTable.H"
+#include "fvMesh.H"
 #include "fvPatchFieldMapper.H"
-#include "volFields.H"
+#include "meshCellZonesFwd.H"
+#include "profileVelocityFvPatchVectorField.H"
+#include "scalar.H"
 #include "surfaceFields.H"
+#include "volFields.H"
+#include "wallDist.H"
 
 // * * * * * * * * * * * * * Private Member Functions  * * * * * * * * * * * //
 
@@ -39,93 +44,39 @@ Foam::scalar Foam::profileVelocityFvPatchVectorField::t() const
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::profileVelocityFvPatchVectorField::
-profileVelocityFvPatchVectorField
-(
-    const fvPatch& p,
-    const DimensionedField<vector, volMesh>& iF
-)
-:
-    fixedValueFvPatchVectorField(p, iF),
-    scalarData_(0.0),
-    data_(Zero),
-    fieldData_(p.size(), Zero),
-    timeVsData_(),
-    wordData_("wordDefault"),
-    labelData_(-1),
-    boolData_(false)
-{
-}
+Foam::profileVelocityFvPatchVectorField::profileVelocityFvPatchVectorField(
+    const fvPatch &p, const DimensionedField<vector, volMesh> &iF)
+    : fixedValueFvPatchVectorField(p, iF), umax_(Zero), profile_() {}
 
-
-Foam::profileVelocityFvPatchVectorField::
-profileVelocityFvPatchVectorField
-(
-    const fvPatch& p,
-    const DimensionedField<vector, volMesh>& iF,
-    const dictionary& dict
-)
-:
-    fixedValueFvPatchVectorField(p, iF),
-    scalarData_(dict.lookup<scalar>("scalarData")),
-    data_(dict.lookup<vector>("data")),
-    fieldData_("fieldData", dict, p.size()),
-    timeVsData_(Function1<vector>::New("timeVsData", dict)),
-    wordData_(dict.lookupOrDefault<word>("wordName", "wordDefault")),
-    labelData_(-1),
-    boolData_(false)
-{
-
+Foam::profileVelocityFvPatchVectorField::profileVelocityFvPatchVectorField(
+    const fvPatch &p, const DimensionedField<vector, volMesh> &iF,
+    const dictionary &dict)
+    : fixedValueFvPatchVectorField(p, iF), umax_(dict.lookup<vector>("umax")),
+      profile_(Function1<scalar>::New("profile", dict)) {
 
     fixedValueFvPatchVectorField::evaluate();
 
-    /*
-    // Initialise with the value entry if evaluation is not possible
-    fvPatchVectorField::operator=
-    (
-        vectorField("value", dict, p.size())
-    );
-    */
+  /*
+  // Initialise with the value entry if evaluation is not possible
+  fvPatchVectorField::operator=
+  (
+      vectorField("value", dict, p.size())
+  );
+  */
 }
 
+Foam::profileVelocityFvPatchVectorField::profileVelocityFvPatchVectorField(
+    const profileVelocityFvPatchVectorField &ptf, const fvPatch &p,
+    const DimensionedField<vector, volMesh> &iF,
+    const fvPatchFieldMapper &mapper)
+    : fixedValueFvPatchVectorField(ptf, p, iF, mapper), umax_(ptf.umax_),
+      profile_(ptf.profile_, false) {}
 
-Foam::profileVelocityFvPatchVectorField::
-profileVelocityFvPatchVectorField
-(
-    const profileVelocityFvPatchVectorField& ptf,
-    const fvPatch& p,
-    const DimensionedField<vector, volMesh>& iF,
-    const fvPatchFieldMapper& mapper
-)
-:
-    fixedValueFvPatchVectorField(ptf, p, iF, mapper),
-    scalarData_(ptf.scalarData_),
-    data_(ptf.data_),
-    fieldData_(mapper(ptf.fieldData_)),
-    timeVsData_(ptf.timeVsData_, false),
-    wordData_(ptf.wordData_),
-    labelData_(-1),
-    boolData_(ptf.boolData_)
-{}
-
-
-Foam::profileVelocityFvPatchVectorField::
-profileVelocityFvPatchVectorField
-(
-    const profileVelocityFvPatchVectorField& ptf,
-    const DimensionedField<vector, volMesh>& iF
-)
-:
-    fixedValueFvPatchVectorField(ptf, iF),
-    scalarData_(ptf.scalarData_),
-    data_(ptf.data_),
-    fieldData_(ptf.fieldData_),
-    timeVsData_(ptf.timeVsData_, false),
-    wordData_(ptf.wordData_),
-    labelData_(-1),
-    boolData_(ptf.boolData_)
-{}
-
+Foam::profileVelocityFvPatchVectorField::profileVelocityFvPatchVectorField(
+    const profileVelocityFvPatchVectorField &ptf,
+    const DimensionedField<vector, volMesh> &iF)
+    : fixedValueFvPatchVectorField(ptf, iF), umax_(ptf.umax_),
+      profile_(ptf.profile_, false) {}
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
@@ -135,7 +86,6 @@ void Foam::profileVelocityFvPatchVectorField::autoMap
 )
 {
     fixedValueFvPatchVectorField::autoMap(m);
-    m(fieldData_, fieldData_);
 }
 
 
@@ -147,10 +97,7 @@ void Foam::profileVelocityFvPatchVectorField::rmap
 {
     fixedValueFvPatchVectorField::rmap(ptf, addr);
 
-    const profileVelocityFvPatchVectorField& tiptf =
-        refCast<const profileVelocityFvPatchVectorField>(ptf);
 
-    fieldData_.rmap(tiptf.fieldData_, addr);
 }
 
 
@@ -161,11 +108,18 @@ void Foam::profileVelocityFvPatchVectorField::updateCoeffs()
         return;
     }
 
-    fixedValueFvPatchVectorField::operator==
+    const fvMesh mesh = patch().boundaryMesh().mesh();
+
+    const volScalarField y(wallDist::New(mesh).y());
+
+    Field<scalar> yp=patch().patchInternalField(y);
+    Field<scalar> profiley=profile_->value(yp);
+
+    profiley/=gMax(profiley);
+
+    fixedValueFvPatchField::operator==
     (
-        data_
-      + fieldData_
-      + scalarData_*timeVsData_->value(t())
+        umax_*profiley
     );
 
 
@@ -179,11 +133,8 @@ void Foam::profileVelocityFvPatchVectorField::write
 ) const
 {
     fvPatchVectorField::write(os);
-    writeEntry(os, "scalarData", scalarData_);
-    writeEntry(os, "data", data_);
-    writeEntry(os, "fieldData", fieldData_);
-    writeEntry(os, timeVsData_());
-    writeEntry(os, "wordData", wordData_);
+    writeEntry(os, "umax", umax_);
+    writeEntry(os, profile_());
     writeEntry(os, "value", *this);
 }
 

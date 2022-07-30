@@ -93,96 +93,54 @@ class profileVelocityFvPatchVectorField
 {
     // Private Data
 
-        //- Single valued scalar quantity, e.g. a coefficient
-        scalar scalarData_;
+    //  velocidadm max
+    vector umax_;
 
-        //- Single valued Type quantity, e.g. reference pressure pRefValue_
-        //  Other options include vector, tensor
-        vector data_;
-
-        //- Field of Types, typically defined across patch faces
-        //  e.g. total pressure p0_.  Other options include vectorField
-        vectorField fieldData_;
-
-        //- Type specified as a function of time for time-varying BCs
-        autoPtr<Function1<vector>> timeVsData_;
-
-        //- Word entry, e.g. pName_ for name of the pressure field on database
-        word wordData_;
-
-        //- Label, e.g. patch index, current time index
-        label labelData_;
-
-        //- Boolean for true/false, e.g. specify if flow rate is volumetric_
-        bool boolData_;
-
+    //- x son distancias a hacia los walldist
+    // y son valores interpolados que iran de 0 a 1, portanto se normalizara
+    autoPtr<Function1<scalar>> profile_;
 
     // Private Member Functions
 
-        //- Return current time
-        scalar t() const;
-
+    //- Return current time
+    scalar t() const;
 
 public:
-
     //- Runtime type information
     TypeName("profileVelocity");
 
-
     // Constructors
 
-        //- Construct from patch and internal field
-        profileVelocityFvPatchVectorField
-        (
-            const fvPatch&,
-            const DimensionedField<vector, volMesh>&
-        );
+    //- Construct from patch and internal field
+    profileVelocityFvPatchVectorField(
+        const fvPatch &, const DimensionedField<vector, volMesh> &);
 
-        //- Construct from patch, internal field and dictionary
-        profileVelocityFvPatchVectorField
-        (
-            const fvPatch&,
-            const DimensionedField<vector, volMesh>&,
-            const dictionary&
-        );
+    //- Construct from patch, internal field and dictionary
+    profileVelocityFvPatchVectorField(const fvPatch &,
+                                      const DimensionedField<vector, volMesh> &,
+                                      const dictionary &);
 
-        //- Construct by mapping given fixedValueTypeFvPatchField
-        //  onto a new patch
-        profileVelocityFvPatchVectorField
-        (
-            const profileVelocityFvPatchVectorField&,
-            const fvPatch&,
-            const DimensionedField<vector, volMesh>&,
-            const fvPatchFieldMapper&
-        );
+    //- Construct by mapping given fixedValueTypeFvPatchField
+    //  onto a new patch
+    profileVelocityFvPatchVectorField(const profileVelocityFvPatchVectorField &,
+                                      const fvPatch &,
+                                      const DimensionedField<vector, volMesh> &,
+                                      const fvPatchFieldMapper &);
 
-        //- Disallow copy without setting internal field reference
-        profileVelocityFvPatchVectorField
-        (
-            const profileVelocityFvPatchVectorField&
-        ) = delete;
+    //- Disallow copy without setting internal field reference
+    profileVelocityFvPatchVectorField(
+        const profileVelocityFvPatchVectorField &) = delete;
 
-        //- Copy constructor setting internal field reference
-        profileVelocityFvPatchVectorField
-        (
-            const profileVelocityFvPatchVectorField&,
-            const DimensionedField<vector, volMesh>&
-        );
+    //- Copy constructor setting internal field reference
+    profileVelocityFvPatchVectorField(
+        const profileVelocityFvPatchVectorField &,
+        const DimensionedField<vector, volMesh> &);
 
-        //- Construct and return a clone setting internal field reference
-        virtual tmp<fvPatchVectorField> clone
-        (
-            const DimensionedField<vector, volMesh>& iF
-        ) const
-        {
-            return tmp<fvPatchVectorField>
-            (
-                new profileVelocityFvPatchVectorField
-                (
-                    *this,
-                    iF
-                )
-            );
+    //- Construct and return a clone setting internal field reference
+    virtual tmp<fvPatchVectorField>
+    clone(const DimensionedField<vector, volMesh> &iF) const {
+      return tmp<fvPatchVectorField>(
+          new profileVelocityFvPatchVectorField(*this, iF));
         }
 
 
